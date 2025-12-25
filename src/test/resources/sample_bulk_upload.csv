@@ -1,0 +1,22 @@
+ticketNumber,title,description,status,priority,customerId,assignedTo
+TKT-BULK-001,Login Authentication Issue,Users unable to login to the portal,OPEN,HIGH,1001,101
+TKT-BULK-002,Dashboard Performance Problem,Dashboard takes too long to load,OPEN,MEDIUM,1002,102
+TKT-BULK-003,Password Reset Request,Customer forgot password needs reset,PENDING,LOW,1003,
+TKT-BULK-004,Account Locked,Account locked after 5 failed login attempts,OPEN,CRITICAL,1004,101
+TKT-BULK-005,Feature Request Dark Mode,Request to add dark mode to application,OPEN,LOW,1005,
+TKT-BULK-006,Payment Gateway Error,Payment processing failing intermittently,IN_PROGRESS,HIGH,1006,103
+TKT-BULK-007,Email Notifications Not Working,Users not receiving email notifications,OPEN,MEDIUM,1007,102
+TKT-BULK-008,Mobile App Crash,App crashes on startup on iOS devices,OPEN,CRITICAL,1008,104
+TKT-BULK-009,Data Export Issue,Export to CSV not including all columns,OPEN,LOW,1009,
+TKT-BULK-010,Search Not Working,Search functionality returns no results,IN_PROGRESS,HIGH,1010,103
+TKT-BULK-011,Slow API Response,API endpoints taking more than 5 seconds,OPEN,HIGH,1001,101
+TKT-BULK-012,UI Alignment Issue,Buttons misaligned on checkout page,OPEN,LOW,1002,
+TKT-BULK-013,Session Timeout Too Short,Users being logged out too frequently,PENDING,MEDIUM,1003,102
+TKT-BULK-014,Report Generation Failed,Monthly report generation failing,OPEN,HIGH,1004,103
+TKT-BULK-015,Integration Error,Third party API integration broken,OPEN,CRITICAL,1005,104
+TKT-BULK-016,Database Connection Pool Exhausted,Intermittent database connectivity issues,OPEN,CRITICAL,1006,101
+TKT-BULK-017,Memory Leak in Service,Service memory usage growing over time,IN_PROGRESS,HIGH,1007,103
+TKT-BULK-018,SSL Certificate Expiring,SSL certificate expires in 7 days,OPEN,HIGH,1008,
+TKT-BULK-019,Backup Job Failed,Nightly backup job failed last night,OPEN,MEDIUM,1009,102
+TKT-BULK-020,Disk Space Low,Server disk usage above 90%,OPEN,HIGH,1010,101
+

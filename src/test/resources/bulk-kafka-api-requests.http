@@ -1,0 +1,119 @@
+### Kafka Bulk Ticket Processing API Tests
+### Enterprise-level Kafka Bulk Processing for Distributed Ticketing Management System
+
+### ==================== BULK UPLOAD ====================
+
+### Upload CSV file for bulk processing
+### POST /api/v1/tickets/bulk/upload
+POST http://localhost:8085/api/v1/tickets/bulk/upload
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="file"; filename="sample_kafka_bulk_upload.csv"
+Content-Type: text/csv
+
+< ./sample_kafka_bulk_upload.csv
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="uploadedBy"
+
+admin
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+### ==================== BATCH STATUS ====================
+
+### Get batch status by ID
+### Replace {batchId} with actual batch ID from upload response
+GET http://localhost:8085/api/v1/tickets/bulk/status/BATCH-1735033200000-ABC12345
+
+### ==================== BATCH FAILURES ====================
+
+### Get failures for a batch (with pagination)
+### Replace {batchId} with actual batch ID
+GET http://localhost:8085/api/v1/tickets/bulk/failures/BATCH-1735033200000-ABC12345?page=0&size=50
+
+### ==================== ACTIVE BATCHES ====================
+
+### Get all active (in-progress) batches
+GET http://localhost:8085/api/v1/tickets/bulk/active
+
+### ==================== CANCEL BATCH ====================
+
+### Cancel a batch upload
+### Replace {batchId} with actual batch ID
+POST http://localhost:8085/api/v1/tickets/bulk/cancel/BATCH-1735033200000-ABC12345?reason=Testing%20cancellation
+
+### ==================== DEAD LETTER TOPIC ====================
+
+### Get DLT messages (default topic)
+GET http://localhost:8085/api/v1/tickets/bulk/dlt?limit=100
+
+### Get DLT messages for specific topic
+GET http://localhost:8085/api/v1/tickets/bulk/dlt?topic=ticket.bulk.requests.DLT&limit=50
+
+### Reprocess a DLT message
+### Replace {messageId} with actual message ID
+POST http://localhost:8085/api/v1/tickets/bulk/dlt/reprocess/msg-123456
+
+### ==================== EXPECTED RESPONSES ====================
+
+### Successful Upload Response (202 Accepted):
+# {
+#   "success": true,
+#   "message": "Bulk upload accepted for processing",
+#   "timestamp": "2024-12-24T10:30:00",
+#   "status": 202,
+#   "data": {
+#     "batchId": "BATCH-1735033200000-ABC12345",
+#     "status": "ACCEPTED",
+#     "statusMessage": "Bulk upload accepted for processing",
+#     "totalRecords": 150,
+#     "totalChunks": 2,
+#     "acceptedAt": "2024-12-24T10:30:00",
+#     "statusUrl": "/api/v1/tickets/bulk/status/BATCH-1735033200000-ABC12345",
+#     "failuresUrl": "/api/v1/tickets/bulk/failures/BATCH-1735033200000-ABC12345"
+#   }
+# }
+
+### Batch Status Response (200 OK):
+# {
+#   "success": true,
+#   "message": "Batch status retrieved successfully",
+#   "status": 200,
+#   "data": {
+#     "batchId": "BATCH-1735033200000-ABC12345",
+#     "status": "PROCESSING",
+#     "progressPercentage": 65.5,
+#     "chunkProgressPercentage": 50.0,
+#     "totalRecords": 150,
+#     "successCount": 98,
+#     "failureCount": 2,
+#     "skippedCount": 0,
+#     "totalChunks": 2,
+#     "completedChunks": 1
+#   }
+# }
+
+### CSV Validation Error Response (400 Bad Request):
+# {
+#   "success": false,
+#   "message": "CSV validation failed",
+#   "errorCode": "V1002",
+#   "errorDetails": "CSV Validation Failed: 3 error(s) in file 'tickets.csv'\n...",
+#   "retryable": false,
+#   "validationErrors": [
+#     {"line": "5", "field": "ticketNumber", "message": "Ticket number is required"},
+#     {"line": "12", "field": "customerId", "message": "Invalid customer ID format"}
+#   ],
+#   "status": 400
+# }
+
+### Kafka Producer Error Response (503 Service Unavailable):
+# {
+#   "success": false,
+#   "message": "Kafka producer error",
+#   "errorCode": "K4001",
+#   "errorDetails": "[KafkaProducerError] Topic: ticket.bulk.requests, ...",
+#   "retryable": true,
+#   "status": 503
+# }
+

@@ -1,0 +1,317 @@
+### Distributed Ticketing Management System - API Test Requests
+### Base URL: http://localhost:8080
+
+### ==================== CREATE TICKET ====================
+
+### Create a new ticket with all fields
+POST http://localhost:8080/api/tickets
+Content-Type: application/json
+
+{
+  "ticketNumber": "TKT-2025-001",
+  "title": "Login Authentication Issue",
+  "description": "Users are unable to login to the system. Getting 401 Unauthorized error.",
+  "status": "OPEN",
+  "priority": "HIGH",
+  "customerId": 1001,
+  "assignedTo": 101
+}
+
+### Create ticket with minimal required fields
+POST http://localhost:8080/api/tickets
+Content-Type: application/json
+
+{
+  "ticketNumber": "TKT-2025-002",
+  "title": "Dashboard Loading Slowly",
+  "customerId": 1002
+}
+
+### ==================== BULK CREATE TICKETS ====================
+
+### Bulk create multiple tickets
+POST http://localhost:8080/api/tickets/bulk
+Content-Type: application/json
+
+[
+  {
+    "ticketNumber": "TKT-BULK-001",
+    "title": "Bulk Ticket 1",
+    "description": "First bulk ticket",
+    "status": "OPEN",
+    "priority": "LOW",
+    "customerId": 2001,
+    "assignedTo": 201
+  },
+  {
+    "ticketNumber": "TKT-BULK-002",
+    "title": "Bulk Ticket 2",
+    "description": "Second bulk ticket",
+    "status": "OPEN",
+    "priority": "MEDIUM",
+    "customerId": 2002,
+    "assignedTo": 202
+  },
+  {
+    "ticketNumber": "TKT-BULK-003",
+    "title": "Bulk Ticket 3",
+    "description": "Third bulk ticket",
+    "status": "IN_PROGRESS",
+    "priority": "HIGH",
+    "customerId": 2003,
+    "assignedTo": 203
+  }
+]
+
+### ==================== GET TICKET BY ID ====================
+
+### Get ticket by ID
+GET http://localhost:8080/api/tickets/1
+Content-Type: application/json
+
+### Get ticket by ID (different ID)
+GET http://localhost:8080/api/tickets/2
+Content-Type: application/json
+
+### ==================== GET TICKET BY NUMBER ====================
+
+### Get ticket by ticket number
+GET http://localhost:8080/api/tickets/number/TKT-2025-001
+Content-Type: application/json
+
+### ==================== GET ALL TICKETS WITH FILTERS & PAGINATION ====================
+
+### Get all tickets (default pagination)
+GET http://localhost:8080/api/tickets
+Content-Type: application/json
+
+### Get tickets with pagination
+GET http://localhost:8080/api/tickets?page=0&size=10
+Content-Type: application/json
+
+### Get tickets filtered by status
+GET http://localhost:8080/api/tickets?status=OPEN
+Content-Type: application/json
+
+### Get tickets filtered by priority
+GET http://localhost:8080/api/tickets?priority=HIGH
+Content-Type: application/json
+
+### Get tickets filtered by customer ID
+GET http://localhost:8080/api/tickets?customerId=1001
+Content-Type: application/json
+
+### Get tickets filtered by assignee
+GET http://localhost:8080/api/tickets?assignedTo=101
+Content-Type: application/json
+
+### Get tickets with multiple filters
+GET http://localhost:8080/api/tickets?status=OPEN&priority=HIGH&page=0&size=5
+Content-Type: application/json
+
+### Get tickets with sorting
+GET http://localhost:8080/api/tickets?sortBy=createdAt&sortDir=desc
+Content-Type: application/json
+
+### Get tickets with all parameters
+GET http://localhost:8080/api/tickets?status=OPEN&priority=HIGH&customerId=1001&assignedTo=101&page=0&size=10&sortBy=createdAt&sortDir=desc
+Content-Type: application/json
+
+### ==================== UPDATE TICKET ====================
+
+### Update ticket (full update)
+PUT http://localhost:8080/api/tickets/1
+Content-Type: application/json
+
+{
+  "title": "Updated Ticket Title",
+  "description": "Updated description for the ticket",
+  "status": "IN_PROGRESS",
+  "priority": "CRITICAL",
+  "assignedTo": 105
+}
+
+### Update ticket (partial update)
+PUT http://localhost:8080/api/tickets/2
+Content-Type: application/json
+
+{
+  "status": "RESOLVED",
+  "priority": "LOW"
+}
+
+### ==================== UPDATE TICKET STATUS ====================
+
+### Update ticket status only
+PATCH http://localhost:8080/api/tickets/1/status
+Content-Type: application/json
+
+{
+  "status": "IN_PROGRESS"
+}
+
+### Update ticket status to RESOLVED
+PATCH http://localhost:8080/api/tickets/2/status
+Content-Type: application/json
+
+{
+  "status": "RESOLVED"
+}
+
+### Update ticket status to CLOSED
+PATCH http://localhost:8080/api/tickets/3/status
+Content-Type: application/json
+
+{
+  "status": "CLOSED"
+}
+
+### ==================== DELETE TICKET ====================
+
+### Delete ticket by ID
+DELETE http://localhost:8080/api/tickets/10
+Content-Type: application/json
+
+### ==================== ERROR CASES ====================
+
+### Create ticket with missing required fields (should return 400)
+POST http://localhost:8080/api/tickets
+Content-Type: application/json
+
+{
+  "ticketNumber": "TKT-ERROR-001"
+}
+
+### Create ticket with duplicate ticket number (should return 409)
+POST http://localhost:8080/api/tickets
+Content-Type: application/json
+
+{
+  "ticketNumber": "TKT-2025-001",
+  "title": "Duplicate Ticket",
+  "customerId": 1001
+}
+
+### Get non-existent ticket (should return 404)
+GET http://localhost:8080/api/tickets/99999
+Content-Type: application/json
+
+### Get ticket with invalid ID format (should return 400)
+GET http://localhost:8080/api/tickets/invalid
+Content-Type: application/json
+
+### Update non-existent ticket (should return 404)
+PUT http://localhost:8080/api/tickets/99999
+Content-Type: application/json
+
+{
+  "status": "CLOSED"
+}
+
+### Delete non-existent ticket (should return 404)
+DELETE http://localhost:8080/api/tickets/99999
+Content-Type: application/json
+
+### ==================== KAFKA BULK UPLOAD ENDPOINTS ====================
+
+### Upload CSV file for Kafka-based bulk processing
+### Note: Replace the file path with actual path to your CSV file
+### This endpoint processes the file asynchronously via Kafka
+POST http://localhost:8081/api/tickets/bulk-kafka/upload
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="file"; filename="sample_kafka_bulk_upload.csv"
+Content-Type: text/csv
+
+ticketNumber,title,description,status,priority,customerId,assignedTo
+TICKET-KAFKA-001,Test Ticket 1,Description 1,OPEN,HIGH,1001,101
+TICKET-KAFKA-002,Test Ticket 2,Description 2,OPEN,MEDIUM,1002,102
+TICKET-KAFKA-003,Test Ticket 3,Description 3,OPEN,LOW,1003,103
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+### Get bulk upload status by batch ID
+### Replace {batchId} with actual batch ID from upload response
+GET http://localhost:8081/api/tickets/bulk-kafka/status/BATCH-1234567890-abc12345
+Accept: application/json
+
+### Get all active bulk processing batches
+GET http://localhost:8081/api/tickets/bulk-kafka/active
+Accept: application/json
+
+### Get DLQ (Dead Letter Queue) records for a batch
+### Replace {batchId} with actual batch ID
+GET http://localhost:8081/api/tickets/bulk-kafka/dlq/BATCH-1234567890-abc12345
+Accept: application/json
+
+### Reprocess a DLQ record
+### Replace {batchId} and {chunkId} with actual values
+POST http://localhost:8081/api/tickets/bulk-kafka/dlq/BATCH-1234567890-abc12345/BATCH-1234567890-abc12345-CHUNK-0/reprocess
+Accept: application/json
+
+### ==================== KAFKA BULK UPLOAD - SAMPLE SCENARIOS ====================
+
+### Scenario 1: Small batch upload (inline CSV)
+POST http://localhost:8081/api/tickets/bulk-kafka/upload
+Content-Type: multipart/form-data; boundary=boundary123
+
+--boundary123
+Content-Disposition: form-data; name="file"; filename="small_batch.csv"
+Content-Type: text/csv
+
+ticketNumber,title,description,status,priority,customerId,assignedTo
+TKT-SM-001,Small Batch Ticket 1,First ticket in small batch,OPEN,HIGH,5001,
+TKT-SM-002,Small Batch Ticket 2,Second ticket in small batch,OPEN,MEDIUM,5002,201
+TKT-SM-003,Small Batch Ticket 3,Third ticket in small batch,OPEN,LOW,5003,202
+--boundary123--
+
+### Scenario 2: CSV with validation errors (some records will fail)
+POST http://localhost:8081/api/tickets/bulk-kafka/upload
+Content-Type: multipart/form-data; boundary=boundary456
+
+--boundary456
+Content-Disposition: form-data; name="file"; filename="with_errors.csv"
+Content-Type: text/csv
+
+ticketNumber,title,description,status,priority,customerId,assignedTo
+TKT-ERR-001,Valid Ticket,This one is valid,OPEN,HIGH,6001,301
+,Missing Ticket Number,This will fail validation,OPEN,MEDIUM,6002,302
+TKT-ERR-003,,Missing Title,OPEN,LOW,6003,303
+TKT-ERR-004,Invalid Status,Test,INVALID_STATUS,HIGH,6004,304
+TKT-ERR-005,Invalid Priority,Test,OPEN,SUPER_HIGH,6005,305
+TKT-ERR-006,Valid Ticket 2,This one is also valid,OPEN,CRITICAL,6006,306
+--boundary456--
+
+### Scenario 3: Large batch simulation (medium size)
+POST http://localhost:8081/api/tickets/bulk-kafka/upload
+Content-Type: multipart/form-data; boundary=boundary789
+
+--boundary789
+Content-Disposition: form-data; name="file"; filename="medium_batch.csv"
+Content-Type: text/csv
+
+ticketNumber,title,description,status,priority,customerId,assignedTo
+TKT-MED-001,Network Issue,Network connectivity problem,OPEN,HIGH,7001,401
+TKT-MED-002,Software Bug,Application crashes on startup,OPEN,CRITICAL,7002,402
+TKT-MED-003,Hardware Failure,Laptop screen broken,OPEN,MEDIUM,7003,403
+TKT-MED-004,Access Request,Need database access,OPEN,LOW,7004,404
+TKT-MED-005,Performance Issue,System running slow,IN_PROGRESS,HIGH,7005,405
+TKT-MED-006,Security Alert,Suspicious login detected,OPEN,CRITICAL,7006,406
+TKT-MED-007,Data Backup,Backup failed overnight,OPEN,HIGH,7007,407
+TKT-MED-008,Email Issue,Cannot send emails,OPEN,MEDIUM,7008,408
+TKT-MED-009,Printer Problem,Printer offline,OPEN,LOW,7009,409
+TKT-MED-010,VPN Connection,VPN disconnecting,OPEN,HIGH,7010,410
+--boundary789--
+
+### ==================== BULK PROCESSING MONITORING ====================
+
+### Check overall system health (should return active batch count)
+GET http://localhost:8081/api/tickets/bulk-kafka/active
+Accept: application/json
+
+### Poll for batch completion (use in a loop until state is COMPLETED)
+### Replace with actual batch ID
+GET http://localhost:8081/api/tickets/bulk-kafka/status/BATCH-1234567890-abc12345
+Accept: application/json
+
+

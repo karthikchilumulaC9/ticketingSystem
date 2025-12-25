@@ -1,0 +1,27 @@
+ticketNumber,title,description,status,priority,customerId,assignedTo
+TICKET-BULK-001,Network connectivity issue,User unable to connect to VPN from home office,OPEN,HIGH,1001,101
+TICKET-BULK-002,Password reset request,Employee forgot password and needs reset,OPEN,MEDIUM,1002,102
+TICKET-BULK-003,Software installation request,Need Microsoft Office installed on new laptop,OPEN,LOW,1003,101
+TICKET-BULK-004,Email not syncing,Outlook emails not syncing on mobile device,OPEN,HIGH,1004,103
+TICKET-BULK-005,Printer not working,Floor 3 printer showing offline status,IN_PROGRESS,MEDIUM,1005,102
+TICKET-BULK-006,Access permission request,Need access to shared drive for project files,OPEN,MEDIUM,1006,101
+TICKET-BULK-007,Laptop screen flickering,Display intermittently flickering on Dell laptop,OPEN,HIGH,1007,103
+TICKET-BULK-008,New employee onboarding,Setup workstation and accounts for new hire,OPEN,MEDIUM,1008,101
+TICKET-BULK-009,WiFi slow in conference room,Meeting room WiFi experiencing lag during video calls,OPEN,HIGH,1009,102
+TICKET-BULK-010,License renewal needed,Adobe Creative Suite license expiring next week,OPEN,MEDIUM,1010,101
+TICKET-BULK-011,Database backup failed,Nightly backup job failed with timeout error,OPEN,CRITICAL,1011,103
+TICKET-BULK-012,Application crash on startup,CRM application crashes when opening reports module,OPEN,HIGH,1012,102
+TICKET-BULK-013,Monitor replacement request,Second monitor has dead pixels needs replacement,OPEN,LOW,1013,101
+TICKET-BULK-014,VPN certificate expired,Unable to connect to corporate VPN certificate error,OPEN,HIGH,1014,103
+TICKET-BULK-015,Disk space low warning,Server showing low disk space warning on C drive,OPEN,CRITICAL,1015,102
+TICKET-BULK-016,New software evaluation,Request to evaluate and install project management tool,OPEN,LOW,1016,101
+TICKET-BULK-017,Security patch deployment,Critical Windows security patch needs deployment,OPEN,CRITICAL,1017,103
+TICKET-BULK-018,Meeting room booking system error,Calendar integration not working for room bookings,OPEN,MEDIUM,1018,102
+TICKET-BULK-019,Keyboard replacement,Laptop keyboard has sticky keys needs replacement,OPEN,LOW,1019,101
+TICKET-BULK-020,API integration failing,Third-party API returning 500 errors intermittently,OPEN,HIGH,1020,103
+TICKET-BULK-021,Email attachment size limit,Unable to send large attachments via email,OPEN,MEDIUM,1021,102
+TICKET-BULK-022,Browser extension request,Need approval for password manager browser extension,OPEN,LOW,1022,101
+TICKET-BULK-023,Network port activation,New desk needs network port activated in building B,OPEN,MEDIUM,1023,103
+TICKET-BULK-024,Remote desktop connection issue,RDP session disconnecting after 5 minutes,OPEN,HIGH,1024,102
+TICKET-BULK-025,Antivirus alert investigation,Multiple antivirus alerts from workstation,OPEN,CRITICAL,1025,103
+
