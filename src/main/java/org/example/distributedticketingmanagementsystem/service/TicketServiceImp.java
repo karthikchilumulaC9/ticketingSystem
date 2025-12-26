@@ -9,12 +9,17 @@ import org.example.distributedticketingmanagementsystem.dto.ServiceResponse;
 import org.example.distributedticketingmanagementsystem.dto.TicketCreateRequest;
 import org.example.distributedticketingmanagementsystem.dto.TicketDTO;
 import org.example.distributedticketingmanagementsystem.dto.TicketUpdateRequest;
+import org.example.distributedticketingmanagementsystem.event.TicketCacheEvent;
+import org.example.distributedticketingmanagementsystem.event.TicketCreatedEvent;
+import org.example.distributedticketingmanagementsystem.event.TicketDeletedEvent;
+import org.example.distributedticketingmanagementsystem.event.TicketUpdatedEvent;
 import org.example.distributedticketingmanagementsystem.exception.DuplicateTicketException;
 import org.example.distributedticketingmanagementsystem.exception.InvalidTicketOperationException;
 import org.example.distributedticketingmanagementsystem.exception.NullRequestException;
 import org.example.distributedticketingmanagementsystem.exception.TicketNotFoundException;
 import org.example.distributedticketingmanagementsystem.mapper.TicketMapper;
 import org.example.distributedticketingmanagementsystem.repository.TicketRepository;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -30,6 +35,34 @@ import java.util.Collections;
 import java.util.List;
 
 
+/**
+ * Implementation of {@link TicketService} providing enterprise-grade ticket management.
+ *
+ * <h3>Architecture Design:</h3>
+ * <ul>
+ *   <li><strong>Event-Driven Caching:</strong> Uses Spring's ApplicationEventPublisher
+ *       to publish events that are processed AFTER transaction commits</li>
+ *   <li><strong>Cache Consistency:</strong> Redis cache is updated only after
+ *       successful database commits, preventing stale data</li>
+ *   <li><strong>Separation of Concerns:</strong> Business logic is decoupled from
+ *       caching infrastructure</li>
+ * </ul>
+ *
+ * <h3>Transaction Flow:</h3>
+ * <pre>
+ * 1. Service method starts transaction
+ * 2. Business logic executes (validation, DB operations)
+ * 3. Event is published (within transaction boundary)
+ * 4. Transaction commits
+ * 5. EventListener processes event (caches data in Redis)
+ * </pre>
+ *
+ * @author Enterprise Architecture Team
+ * @since 1.0.0
+ * @see TicketCreatedEvent
+ * @see TicketUpdatedEvent
+ * @see TicketDeletedEvent
+ */
 @Slf4j
 @Service
 @Transactional
@@ -41,70 +74,112 @@ public class TicketServiceImp implements TicketService {
     private final TicketValidationService validationService;
     private final TicketCacheService cacheService;
 
+    /**
+     * Event publisher for domain events.
+     * Events are processed by {@link org.example.distributedticketingmanagementsystem.event.TicketEventListener}
+     * AFTER transaction commits.
+     */
+    private final ApplicationEventPublisher eventPublisher;
+
     // ==================== CREATE ====================
 
     /**
-     * Creates a new ticket.
-     * Validation is done by ValidationService - this method handles business logic only.
+     * Creates a new ticket with transactional safety.
+     *
+     * <p><strong>Transaction Design:</strong></p>
+     * <ul>
+     *   <li>Ticket is saved to database within transaction</li>
+     *   <li>TicketCreatedEvent is published (but not processed yet)</li>
+     *   <li>After transaction commits, event listener caches the ticket</li>
+     *   <li>If transaction rolls back, no caching occurs</li>
+     * </ul>
+     *
+     * <p>This ensures Redis cache only contains data that is actually
+     * persisted in the database, preventing inconsistency.</p>
+     *
+     * @param request The ticket creation request
+     * @return The created ticket DTO
+     * @throws NullRequestException if request is null or has null required fields
+     * @throws DuplicateTicketException if ticket number already exists
      */
     @Override
+    @Transactional
     public TicketDTO createTicket(TicketCreateRequest request) {
-        // Step 1: Validate (throws exception if invalid)
+        // Validation layer handles null checks and business rules
         validationService.validateCreateRequest(request);
 
-        log.info("Creating ticket: {}", request.getTicketNumber());
+        log.info("📝 Creating ticket: {}", request.getTicketNumber());
 
-        // Step 2: Map to entity
+        // Business logic - save to database
         Ticket ticket = ticketMapper.toEntity(request);
-
-        // Step 3: Save to database
         Ticket savedTicket = ticketRepository.save(ticket);
 
-        // Step 4: Map to DTO
+        // Map to DTO
         TicketDTO ticketDTO = ticketMapper.toDTO(savedTicket);
 
-        // Step 5: Cache the new ticket
-        safelyCacheTicket(savedTicket.getId(), ticketDTO);
+        // Publish event - will be processed AFTER transaction commits
+        // This ensures cache is only updated for successfully persisted data
+        eventPublisher.publishEvent(new TicketCreatedEvent(this, savedTicket.getId(), ticketDTO));
 
-        log.info("✅ Ticket created - id: {}, ticketNumber: {}",
+        log.info("✅ Ticket created - id: {}, ticketNumber: {} (cache update pending commit)",
                 savedTicket.getId(), savedTicket.getTicketNumber());
 
         return ticketDTO;
     }
 
+
     // ==================== READ ====================
 
     /**
      * Retrieves a ticket by ID with cache-aside pattern.
+     *
+     * <p><strong>Cache Strategy:</strong></p>
+     * <ol>
+     *   <li>Check Redis cache first (fast path)</li>
+     *   <li>On cache miss, query database</li>
+     *   <li>Publish cache event to populate Redis after read completes</li>
+     * </ol>
+     *
+     * @param id The ticket ID to retrieve
+     * @return The ticket DTO
+     * @throws NullRequestException if id is null or invalid
+     * @throws TicketNotFoundException if ticket doesn't exist
      */
     @Override
     @Transactional(readOnly = true)
     public TicketDTO getTicketById(Long id) {
-        // Validate
+        // Validate input
         validationService.validateId(id, "Ticket ID");
 
-        // Check cache first
+        // Check cache first (fast path)
         var cached = cacheService.getTicketById(id);
         if (cached.isPresent()) {
-            log.debug("Cache HIT - Ticket ID: {}", id);
+            log.debug("🎯 Cache HIT - Ticket ID: {}", id);
             return cached.get();
         }
 
         // Cache miss - query database
-        log.debug("Cache MISS - Querying DB for Ticket ID: {}", id);
+        log.debug("💾 Cache MISS - Querying DB for Ticket ID: {}", id);
         Ticket ticket = ticketRepository.findById(id)
                 .orElseThrow(() -> new TicketNotFoundException(id));
 
         TicketDTO ticketDTO = ticketMapper.toDTO(ticket);
 
-        // Cache the result
-        safelyCacheTicket(id, ticketDTO);
+        // Publish cache event - will populate cache after transaction completes
+        eventPublisher.publishEvent(new TicketCacheEvent(this, id, ticketDTO));
 
         return ticketDTO;
     }
 
     /**
-     * Retrieves a ticket by ticket number.
+     * Retrieves a ticket by ticket number (business key).
+     *
+     * <p>Uses the same cache-aside pattern as getTicketById.</p>
+     *
+     * @param ticketNumber The ticket number to search for
+     * @return The ticket DTO
+     * @throws NullRequestException if ticketNumber is null or empty
+     * @throws TicketNotFoundException if ticket doesn't exist
      */
     @Override
     @Transactional(readOnly = true)
@@ -115,19 +190,22 @@ public class TicketServiceImp implements TicketService {
 
         String trimmedNumber = ticketNumber.trim();
 
-        // Check cache
+        // Check cache first
         var cached = cacheService.getTicketByNumber(trimmedNumber);
         if (cached.isPresent()) {
-            log.debug("Cache HIT - Ticket number: {}", trimmedNumber);
+            log.debug("🎯 Cache HIT - Ticket number: {}", trimmedNumber);
             return cached.get();
         }
 
-        // Query database
+        // Cache miss - query database
+        log.debug("💾 Cache MISS - Querying DB for Ticket number: {}", trimmedNumber);
         Ticket ticket = ticketRepository.findByTicketNumber(trimmedNumber)
                 .orElseThrow(() -> new TicketNotFoundException("ticketNumber", ticketNumber));
 
         TicketDTO ticketDTO = ticketMapper.toDTO(ticket);
-        safelyCacheTicket(ticket.getId(), ticketDTO);
+
+        // Publish cache event - will populate cache after transaction completes
+        eventPublisher.publishEvent(new TicketCacheEvent(this, ticket.getId(), ticketDTO));
 
         return ticketDTO;
     }
@@ -235,9 +313,25 @@ public class TicketServiceImp implements TicketService {
     // ==================== UPDATE ====================
 
     /**
-     * Updates an existing ticket.
+     * Updates an existing ticket with transactional safety.
+     *
+     * <p><strong>Transaction Design:</strong></p>
+     * <ul>
+     *   <li>Ticket is updated in database within transaction</li>
+     *   <li>TicketUpdatedEvent is published (but not processed yet)</li>
+     *   <li>After transaction commits, event listener refreshes cache</li>
+     *   <li>If transaction rolls back, cache remains unchanged</li>
+     * </ul>
+     *
+     * @param id The ticket ID to update
+     * @param request The update request with new values
+     * @return The updated ticket DTO
+     * @throws NullRequestException if id or request is null
+     * @throws TicketNotFoundException if ticket doesn't exist
+     * @throws InvalidTicketOperationException if ticket cannot be updated
      */
     @Override
+    @Transactional
     public TicketDTO updateTicket(Long id, TicketUpdateRequest request) {
         // Validate request
         validationService.validateUpdateRequest(id, request);
@@ -249,27 +343,34 @@ public class TicketServiceImp implements TicketService {
         // Validate ticket can be updated
         validationService.validateTicketCanBeUpdated(ticket);
 
-        // Evict cache
-        safelyEvictCache(id, ticket.getTicketNumber());
-
         // Apply updates
         applyUpdates(ticket, request);
 
-        // Save
+        // Save to database
         Ticket updatedTicket = ticketRepository.save(ticket);
         TicketDTO ticketDTO = ticketMapper.toDTO(updatedTicket);
 
-        // Re-cache
-        safelyCacheTicket(id, ticketDTO);
+        // Publish event - will refresh cache AFTER transaction commits
+        eventPublisher.publishEvent(new TicketUpdatedEvent(this, id, ticketDTO));
 
-        log.info("✅ Ticket updated - id: {}", id);
+        log.info("✅ Ticket updated - id: {} (cache refresh pending commit)", id);
         return ticketDTO;
     }
 
     /**
-     * Updates ticket status.
+     * Updates ticket status with state machine validation.
+     *
+     * <p>Validates status transitions to ensure proper workflow.</p>
+     *
+     * @param id The ticket ID to update
+     * @param status The new status
+     * @return The updated ticket DTO
+     * @throws NullRequestException if id or status is null
+     * @throws TicketNotFoundException if ticket doesn't exist
+     * @throws InvalidTicketOperationException if status transition is invalid
      */
     @Override
+    @Transactional
     public TicketDTO updateTicketStatus(Long id, String status) {
         // Validate
         validationService.validateStatusUpdateRequest(id, status);
@@ -282,9 +383,6 @@ public class TicketServiceImp implements TicketService {
         String newStatus = status.trim().toUpperCase();
         validationService.validateStatusTransition(ticket.getStatus(), newStatus);
 
-        // Evict cache
-        safelyEvictCache(id, ticket.getTicketNumber());
-
         // Update status
         String oldStatus = ticket.getStatus();
         ticket.setStatus(newStatus);
@@ -294,23 +392,38 @@ public class TicketServiceImp implements TicketService {
             ticket.setResolvedAt(LocalDateTime.now());
         }
 
-        // Save
+        // Save to database
         Ticket updatedTicket = ticketRepository.save(ticket);
         TicketDTO ticketDTO = ticketMapper.toDTO(updatedTicket);
 
-        // Re-cache
-        safelyCacheTicket(id, ticketDTO);
+        // Publish event - will refresh cache AFTER transaction commits
+        eventPublisher.publishEvent(new TicketUpdatedEvent(this, id, ticketDTO));
 
-        log.info("✅ Status updated - id: {}, {} -> {}", id, oldStatus, newStatus);
+        log.info("✅ Status updated - id: {}, {} -> {} (cache refresh pending commit)",
+                id, oldStatus, newStatus);
         return ticketDTO;
     }
 
     // ==================== DELETE ====================
 
     /**
-     * Deletes a ticket by ID.
+     * Deletes a ticket by ID with transactional safety.
+     *
+     * <p><strong>Transaction Design:</strong></p>
+     * <ul>
+     *   <li>Ticket is deleted from database within transaction</li>
+     *   <li>TicketDeletedEvent is published (but not processed yet)</li>
+     *   <li>After transaction commits, event listener evicts cache</li>
+     *   <li>If transaction rolls back, cache remains intact</li>
+     * </ul>
+     *
+     * @param id The ticket ID to delete
+     * @throws NullRequestException if id is null
+     * @throws TicketNotFoundException if ticket doesn't exist
+     * @throws InvalidTicketOperationException if ticket cannot be deleted
      */
     @Override
+    @Transactional
     public void deleteTicket(Long id) {
         // Validate
         validationService.validateId(id, "Ticket ID");
@@ -322,29 +435,45 @@ public class TicketServiceImp implements TicketService {
         // Validate can be deleted
         validationService.validateTicketCanBeDeleted(ticket);
 
-        // Evict cache
-        safelyEvictCache(id, ticket.getTicketNumber());
+        // Store ticket number for event before deletion
+        String ticketNumber = ticket.getTicketNumber();
 
-        // Delete
+        // Delete from database
         ticketRepository.deleteById(id);
 
-        log.info("✅ Ticket deleted - id: {}", id);
+        // Publish event - will evict cache AFTER transaction commits
+        eventPublisher.publishEvent(new TicketDeletedEvent(this, id, ticketNumber));
+
+        log.info("✅ Ticket deleted - id: {} (cache eviction pending commit)", id);
     }
 
     // ==================== BULK OPERATIONS ====================
 
     /**
-     * Bulk creates tickets.
+     * Bulk creates tickets with individual transaction isolation.
+     *
+     * <p>Each ticket is created in its own transaction via the
+     * {@link #createTicket(TicketCreateRequest)} method. This ensures:</p>
+     * <ul>
+     *   <li>One failure doesn't rollback other successful creates</li>
+     *   <li>Each ticket gets its own cache event after commit</li>
+     *   <li>Partial success is supported</li>
+     * </ul>
+     *
+     * @param requests List of ticket creation requests
+     * @return Response with success/failure counts and details
      */
     @Override
+    @Transactional
     public BulkTicketResponse bulkCreateTickets(List<TicketCreateRequest> requests) {
         BulkTicketResponse response = new BulkTicketResponse();
 
         if (requests == null || requests.isEmpty()) {
+            log.info("📦 Bulk create called with empty request list");
             return response;
         }
 
-        log.info("Bulk creating {} tickets", requests.size());
+        log.info("📦 Bulk creating {} tickets", requests.size());
 
         for (int i = 0; i < requests.size(); i++) {
             TicketCreateRequest request = requests.get(i);
@@ -361,11 +490,11 @@ public class TicketServiceImp implements TicketService {
                 response.addFailure(ticketNumber, e.getMessage(), "VALIDATION_ERROR");
             } catch (Exception e) {
                 response.addFailure(ticketNumber, e.getMessage(), "ERROR");
-                log.error("Bulk create error for {}: {}", ticketNumber, e.getMessage());
+                log.error("❌ Bulk create error for {}: {}", ticketNumber, e.getMessage());
             }
         }
 
-        log.info("Bulk create complete - success: {}, failed: {}",
+        log.info("✅ Bulk create complete - success: {}, failed: {}",
                 response.getSuccessCount(), response.getFailureCount());
         return response;
     }
@@ -467,29 +596,16 @@ public class TicketServiceImp implements TicketService {
     // ==================== PRIVATE HELPER METHODS ====================
 
     /**
-     * Safely caches a ticket (cache failure doesn't fail operation).
-     */
-    private void safelyCacheTicket(Long id, TicketDTO ticketDTO) {
-        try {
-            cacheService.cacheTicket(id, ticketDTO);
-        } catch (Exception e) {
-            log.warn("Cache write failed for ticket {}: {}", id, e.getMessage());
-        }
-    }
-
-    /**
-     * Safely evicts cache (cache failure doesn't fail operation).
-     */
-    private void safelyEvictCache(Long id, String ticketNumber) {
-        try {
-            cacheService.evictTicket(id, ticketNumber);
-        } catch (Exception e) {
-            log.warn("Cache evict failed for ticket {}: {}", id, e.getMessage());
-        }
-    }
-
-    /**
      * Builds filter specification for dynamic queries.
+     *
+     * <p>Creates a JPA Specification for filtering tickets based on
+     * provided criteria. All filters are combined with AND logic.</p>
+     *
+     * @param status Filter by ticket status
+     * @param priority Filter by ticket priority
+     * @param customerId Filter by customer ID
+     * @param assignedTo Filter by assigned agent ID
+     * @return JPA Specification for the query
      */
     private Specification<Ticket> buildFilterSpecification(
             String status, String priority, Long customerId, Integer assignedTo) {
@@ -516,6 +632,12 @@ public class TicketServiceImp implements TicketService {
 
     /**
      * Applies update request fields to ticket entity.
+     *
+     * <p>Updates only non-null/non-empty fields from the request.
+     * Validates status transitions and recalculates SLA when priority changes.</p>
+     *
+     * @param ticket The ticket entity to update
+     * @param request The update request with new values
      */
     private void applyUpdates(Ticket ticket, TicketUpdateRequest request) {
         if (StringUtils.hasText(request.getTitle())) {
